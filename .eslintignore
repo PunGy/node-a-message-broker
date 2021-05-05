@@ -1,0 +1,4 @@
+/dist
+/module
+/scripts
+*.config.js

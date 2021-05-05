@@ -1,0 +1,147 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "tsconfigRootDir": "./",
+        "project": "./tsconfig.json",
+        "ecmaVersion": 2020,
+        "sourceType": "module"
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended"
+    ],
+    "settings": {
+        "import/resolver": {
+            "typescript": {}
+        }
+    },
+    "plugins": [
+        "@typescript-eslint/eslint-plugin"
+    ],
+    "env": {
+        "node": true,
+        "es6": true
+    },
+    "rules": {
+        // specific options
+        "semi": [
+            "error", "never"
+        ],
+        "max-len": [
+            "warn", {
+            "code": 140
+        }],
+        "indent": [
+            "error", 4],
+        "quotes": [
+            "error", "single", {
+            "allowTemplateLiterals": true
+        }],
+
+        "no-console": "warn",
+        "no-alert": "error",
+        "no-extra-boolean-cast": "off",
+        "array-callback-return": "error",
+        "no-multi-spaces": "error",
+        "no-return-await": "error",
+        "no-self-compare": "error",
+        "no-unused-expressions": "error",
+        "no-unused-vars": "off",
+        "no-useless-return": "error",
+        "radix": "error",
+        "no-shadow": "off",
+        "no-use-before-define": [
+            "error", {
+            "functions": false,
+            "classes": false
+        }],
+        "no-undef-init": "error",
+        "array-bracket-newline": [
+            "warn", "consistent"
+        ],
+        "brace-style": [
+            "error", "allman"
+        ],
+        "comma-dangle": [
+            "error", "always-multiline"
+        ],
+        "comma-spacing": "error",
+        "comma-style": "error",
+        "func-call-spacing": "error",
+        "function-call-argument-newline": [
+            "warn", "consistent"
+        ],
+        "implicit-arrow-linebreak": "error",
+        "key-spacing": "error",
+        "keyword-spacing": "error",
+        "newline-per-chained-call": [
+            "error", {
+            "ignoreChainWithDepth": 3
+        }],
+        "no-trailing-spaces": "error",
+        "no-unneeded-ternary": "warn",
+        "no-whitespace-before-property": "error",
+        "object-curly-spacing": [
+            "error", "always"
+        ],
+        "operator-assignment": "error",
+        "operator-linebreak": [
+            "error", "before"
+        ],
+        "prefer-object-spread": "error",
+        "wrap-regex": "error",
+        "arrow-body-style": "warn",
+        "arrow-spacing": [
+            "error", {
+            "before": true,
+            "after": true
+        }],
+        "no-duplicate-imports": "error",
+        "no-useless-rename": "error",
+        "no-useless-constructor": "error",
+        "no-var": "error",
+        "object-shorthand": "error",
+        "prefer-arrow-callback": [
+            "error", {
+            "allowNamedFunctions": true
+        }],
+        "prefer-const": "error",
+        "prefer-rest-params": "error",
+        "prefer-spread": "error",
+
+        // JSX and react
+        "jsx-quotes": "error",
+
+        // node.js and commonJS
+        "global-require": "error",
+        "handle-callback-err": "warn",
+        "no-mixed-requires": "error",
+        "no-new-require": "error",
+
+        // Typescript
+        "@typescript-eslint/no-var-requires": "off",
+        "@typescript-eslint/camelcase": "off",
+        "@typescript-eslint/explicit-module-boundary-types": "off",
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-unused-vars": ["error"],
+        "@typescript-eslint/array-type":  [
+            2,
+            {
+                "default": "generic",
+                "readonly": "generic"
+            }],
+        "@typescript-eslint/member-delimiter-style": [
+            2,
+            {
+            "multiline": {
+                "delimiter": "semi",
+                "requireLast": true
+            },
+            "singleline": {
+                "delimiter": "semi",
+                "requireLast": true
+            }
+        }]
+    }
+}
