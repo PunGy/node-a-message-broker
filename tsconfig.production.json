@@ -1,22 +1,9 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "es6",
-    "noImplicitAny": true,
-    "removeComments": true,
-    "allowJs": true,
-    "esModuleInterop": true,
-    "outDir": "./dist",
-    "moduleResolution": "node",
-    "declaration": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "baseUrl": "."
-  },
-  "include": [
-    "src/**/*.ts",
-  ],
-  "exclude": [
-    "node_modules"
-  ],
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "sourceMap": true,
+    },
+    "include": [
+        "src/**/*.ts"
+    ]
 }

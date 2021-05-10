@@ -39,7 +39,7 @@
             "allowTemplateLiterals": true
         }],
 
-        "no-console": "warn",
+        "no-console": "off",
         "no-alert": "error",
         "no-extra-boolean-cast": "off",
         "array-callback-return": "error",
@@ -51,11 +51,6 @@
         "no-useless-return": "error",
         "radix": "error",
         "no-shadow": "off",
-        "no-use-before-define": [
-            "error", {
-            "functions": false,
-            "classes": false
-        }],
         "no-undef-init": "error",
         "array-bracket-newline": [
             "warn", "consistent"
@@ -125,6 +120,7 @@
         "@typescript-eslint/explicit-module-boundary-types": "off",
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/no-unused-vars": ["error"],
+        "@typescript-eslint/no-non-null-assertion": "off",
         "@typescript-eslint/array-type":  [
             2,
             {

@@ -1,25 +1,40 @@
 import { Socket } from 'net'
 
-export type Clients = 'refresh' | 'website' | 'discord_bot' | 'vk_bot' | 'test'
-
-export type ClientsTable = {
-    [key in Clients]?: {
-        socket: Socket | null;
-        messageQueue: Array<MessageObject>;
-    }
+export interface Client {
+    socket: Socket;
+    connectedAt: number;
 }
+export type ClientsTable = Map<string, Client>
 export interface MessageData<T = unknown> {
     topic: string;
     data: T;
 }
 export interface MessageObject<T = unknown> {
-    from_id: Clients;
+    from_id: string;
     message: MessageData<T>;
     message_id: number;
-    to_id?: Clients;
+    to_id: string;
 }
-export interface MessageStatusObject {
-    status: 'done' | 'error';
-    description?: string;
+
+export interface SuccessResult {
+    status: 'done';
 }
-export type EventTypes = 'message'
+export interface FailedResult {
+    status: 'failed';
+    reason: string;
+}
+export type Result = SuccessResult | FailedResult
+
+export enum EventTypes {
+    message = 'message',
+    subscribe = 'subscribe',
+    unsubscribe = 'unsubscribe',
+    connect = 'connect',
+}
+
+export interface EventTypesHandlersMap<T = unknown> {
+    [EventTypes.message]: MessageObject<T>;
+    [EventTypes.subscribe]: (SuccessResult & { id: string; }) | (FailedResult & { id: string; });
+    [EventTypes.unsubscribe]: (SuccessResult & { id: string; }) | (FailedResult & { id: string; });
+    [EventTypes.connect]: void;
+}
