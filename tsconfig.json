@@ -17,11 +17,10 @@
         }
     },
     "include": [
-        "src/**/*.ts",
-        "examples/**/*.ts",
-        "test/**/*.ts"
+        "./**/*",
     ],
     "exclude": [
-        "node_modules"
+        "node_modules",
+        "dist"
     ],
 }

@@ -8,7 +8,7 @@
     "private": false,
     "repository": {
         "type": "git",
-        "url": "https://github.com/PunGy/mockaroni.git"
+        "url": "https://github.com/PunGy/node-a-message-broker.git"
     },
     "keywords": [
         "message-broker",
@@ -26,29 +26,40 @@
         "test:dev": "jest --watchAll",
         "lint": "eslint \"**/*.{js,ts}\"",
         "type-check": "tsc --project tsconfig.production.json --noEmit",
-        "build": "tsc --project tsconfig.production.json",
+        "build": "rollup -c && rimraf dist/src dist/examples",
+        "build:example": "node esbuild.js",
+        "build:example:dev": "node esbuild.js --dev",
         "postinstall": "husky install",
         "prepublishOnly": "pinst --disable",
-        "postpublish": "pinst --enable",
-
-        "build:example": "tsc --project examples/tsconfig.json",
-        "build:example:watch": "tsc --watch --project examples/tsconfig.json"
+        "postpublish": "pinst --enable"
+    },
+    "dependencies": {
+        "node-ipc": "^9.1.4"
     },
     "devDependencies": {
         "@commitlint/cli": "^12.1.1",
         "@commitlint/config-conventional": "^12.1.1",
+        "@rollup/plugin-commonjs": "^19.0.0",
+        "@rollup/plugin-node-resolve": "^13.0.0",
+        "@rollup/plugin-typescript": "^8.2.1",
         "@types/jest": "^26.0.23",
         "@types/node": "^15.0.2",
         "@types/node-ipc": "^9.1.3",
         "@typescript-eslint/eslint-plugin": "^4.22.1",
         "@typescript-eslint/parser": "^4.22.1",
         "cz-conventional-changelog": "^3.3.0",
+        "esbuild": "^0.12.10",
         "eslint": "^7.25.0",
         "husky": "^6.0.0",
         "jest": "^26.6.3",
         "lint-staged": "^10.5.4",
         "pinst": "^2.1.6",
         "prettier": "^2.2.1",
+        "rimraf": "^3.0.2",
+        "rollup": "^2.52.3",
+        "rollup-plugin-dts": "^3.0.2",
+        "rollup-plugin-node-polyfills": "^0.2.1",
+        "rollup-plugin-terser": "^7.0.2",
         "ts-jest": "^26.5.5",
         "typescript": "^4.2.4"
     },
@@ -59,8 +70,5 @@
         "commitizen": {
             "path": "./node_modules/cz-conventional-changelog"
         }
-    },
-    "dependencies": {
-        "node-ipc": "^9.1.4"
     }
 }

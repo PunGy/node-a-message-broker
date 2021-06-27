@@ -1,5 +1,5 @@
 import readline from 'readline'
-import IPCConnection from '@src/client'
+import { ConnectionInstance, isFailed, EventResult, ErrorCode } from '@src/client'
 
 const prompt = (rl: readline.Interface) => (message: string) => new Promise<string>(res => rl.question(message, res))
 
@@ -11,15 +11,31 @@ function showMenu()
 3) Enter Chat`)
 }
 
-async function run()
+(async function run()
 {
     const rl = readline.createInterface(process.stdin, process.stdout)
     const ask = prompt(rl)
 
-    const clientID = await ask('set up your name: ')
-    rl.setPrompt(clientID + ': ')
+    let clientID: string, res: EventResult, connection: ConnectionInstance
+    do
+    {
+        clientID = await ask('set up your name: ')
+        rl.setPrompt(clientID + ': ')
 
-    const connection = new IPCConnection(clientID)
-    const res = await connection.subscribe().catch
-    console.log(res)
-}
+        connection = new ConnectionInstance(clientID)
+        res = await connection.subscribe().catch(err => err)
+
+        if (isFailed(res)) // duplicated code because of typescript type-check
+        {
+            if (res.errorCode === ErrorCode.hubIsNotActive)
+            {
+                console.log('Chat server is not running! Try launch it')
+                process.exit()
+            }
+            else if (res.errorCode === ErrorCode.idAlreadySubscribed)
+            {
+                console.log('Your name is already taken, try another one')
+            }
+        }
+    } while (isFailed(res))
+})()

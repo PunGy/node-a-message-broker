@@ -1,35 +1,40 @@
 import { IPC } from 'node-ipc'
-import { EventTypes, MessageObject, EventTypesHandlersMap, Result } from './types'
-import { isNil, randomNumber } from './utils'
+import { EventType, MessageObject, EventTypesHandlersMap, Result, IPCType, FailedResult, ErrorCode } from './types'
+import { isNil, isSuccess, randomNumber } from './utils'
 
-type ConnectionsTable = Map<string, IPCConnection>
+type ConnectionsTable = Map<string, ConnectionInstance>
 const connections: ConnectionsTable = new Map()
 
-type IPCType = InstanceType<typeof IPC>
 export interface Connection<Clients extends string = string>
 {
     id: Clients;
+    isSubscribed: boolean;
+
     subscribe: () => Promise<IPCType>;
-    on: <K extends EventTypes, T = unknown>(
+    on: <K extends EventType, T = unknown>(
         event: K,
         handler: (data: EventTypesHandlersMap<T>[K]) => void
     ) => (data: EventTypesHandlersMap<T>[K]) => void;
-    off: <T = unknown>(event: EventTypes, handler: (data: T) => void) => void;
+    off: <T = unknown>(event: EventType, handler: (data: T) => void) => void;
     send: (to: Clients, message: unknown) => Promise<Result>;
     onMessage: (handler: (data: MessageObject) => void) => (data: MessageObject) => void;
 }
-export default class IPCConnection implements Connection
+
+export class ConnectionInstance implements Connection
 {
     public id: string
+    public isSubscribed: boolean
     private ipc: IPCType
 
     constructor(id: string)
     {
         if (connections.has(id)) return connections.get(id)!
         this.id = id
+        this.isSubscribed = false
         connections.set(id, this)
     }
-    public on<K extends EventTypes, T = unknown>(event: K, handler: (data: EventTypesHandlersMap<T>[K]) => void)
+
+    public on<K extends EventType, T = unknown>(event: K, handler: (data: EventTypesHandlersMap<T>[K]) => void)
     {
         if (isNil(this.ipc)) throw new Error('You should subscribe to hub before adding event handlers')
         this.ipc.of.hub.on(
@@ -38,19 +43,21 @@ export default class IPCConnection implements Connection
         )
         return handler
     }
-    public off<T = unknown>(event: EventTypes, handler: (data: T) => void)
+
+    public off<T = unknown>(event: EventType, handler: (data: T) => void)
     {
-        if (isNil(this.ipc)) throw new Error('You should subscribe to hub before adding event handlers')
+        if (isNil(this.ipc)) throw new Error('You should subscribe to hub before removing event handlers')
         this.ipc.of.hub.off(
             event,
             handler,
         )
     }
+
     public onMessage(handler: (data: MessageObject) => void)
     {
         if (isNil(this.ipc)) throw new Error('You should subscribe to hub before adding event handlers')
         this.ipc.of.hub.on(
-            'message',
+            EventType.message,
             (data: MessageObject) =>
             {
                 this.ipc.of.hub.emit(`${data.message_id}_sent`)
@@ -59,6 +66,7 @@ export default class IPCConnection implements Connection
         )
         return handler
     }
+
     public send(to: string, message: unknown)
     {
         return new Promise<Result>((res, rej) =>
@@ -67,7 +75,7 @@ export default class IPCConnection implements Connection
 
             const message_id = randomNumber(0, 1000000)
             this.ipc.of.hub.emit(
-                'message',
+                EventType.message,
                 { from_id: this.id, to_id: to, message, message_id },
             )
 
@@ -76,60 +84,72 @@ export default class IPCConnection implements Connection
                 waitSendingEvent,
                 (data: Result) =>
                 {
-                    (data.status === 'done' ? res : rej)(data)
+                    (isSuccess(data) ? res : rej)(data)
                     this.ipc.of.hub.off(waitSendingEvent, '*')
                 },
             )
         })
     }
-    public subscribe(config: Partial<IPCType['config']> = {})
+
+    public subscribe(customIpcConfig: Partial<IPCType['config']> = {}): Promise<IPCType>
     {
         return new Promise<IPCType>((res, rej) =>
         {
             const ipc = new IPC()
 
-            const baseIpcConfig = {
+            const baseIpcConfig: Partial<IPCType['config']> = {
                 id: this.id,
-                retry: 2000,
-                maxRetries: true,
+                retry: 500,
+                maxRetries: 0,
                 silent: true,
             }
             Object.assign(
                 ipc.config,
                 baseIpcConfig,
-                config,
+                customIpcConfig,
             )
 
             ipc.connectTo('hub', () =>
             {
-                ipc.of.hub.on(
-                    'connect',
-                    () =>
-                    {
-                        console.log('## connected to hub ##')
-                        ipc.of.hub.emit(
-                            'subscribe',
+                ipc.of.hub
+                    .on(
+                        EventType.connect,
+                        () =>
+                        {
+                            ipc.of.hub.emit(
+                                EventType.subscribe,
+                                {
+                                    id: ipc.config.id,
+                                },
+                            )
+                        },
+                    ).on(
+                        EventType.subscribe,
+                        (response: EventTypesHandlersMap[EventType.subscribe]) =>
+                        {
+                            console.log(response)
+                            if (isSuccess(response))
                             {
-                                id: ipc.config.id,
-                            },
-                        )
-                    },
-                )
-                ipc.of.hub.on(
-                    'subscribe',
-                    (response: EventTypesHandlersMap[EventTypes.subscribe]) =>
-                    {
-                        if (response.status === 'done')
+                                this.ipc = ipc
+                                this.isSubscribed = true
+                                res(ipc)
+                            }
+                            else
+                            {
+                                rej(response)
+                            }
+                        },
+                    )
+                    .on( // Handle an inner ipc errors
+                        'error',
+                        (error: { errno: number; code: string; syscall: string; address: string; }) =>
                         {
-                            this.ipc = ipc
-                            res(ipc)
-                        }
-                        else
-                        {
-                            rej(response)
-                        }
-                    },
-                )
+                            if (error.syscall === EventType.connect && error.code === 'ENOENT')
+                            {
+                                rej({ errorCode: ErrorCode.hubIsNotActive, reason: 'hub isn\'t reached', status: 'failed' } as FailedResult)
+                            }
+                        },
+                    )
             })
         })
     }
@@ -139,7 +159,7 @@ export default class IPCConnection implements Connection
         return new Promise((res) =>
         {
             this.ipc.of.hub.on(
-                'unsubscribed',
+                EventType.unsubscribe,
                 () =>
                 {
                     res(true)
@@ -147,10 +167,12 @@ export default class IPCConnection implements Connection
                 },
             )
             this.ipc.of.hub.emit(
-                'unsubscribe',
+                EventType.unsubscribe,
                 { id: this.id },
             )
         })
     }
 }
 
+export { isSuccess, isFailed } from './utils'
+export * from './types'

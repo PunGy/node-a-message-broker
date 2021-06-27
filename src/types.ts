@@ -1,4 +1,7 @@
 import { Socket } from 'net'
+import { IPC } from 'node-ipc'
+
+export type IPCType = InstanceType<typeof IPC>
 
 export interface Client {
     socket: Socket;
@@ -16,25 +19,48 @@ export interface MessageObject<T = unknown> {
     to_id: string;
 }
 
-export interface SuccessResult {
-    status: 'done';
+export enum Status {
+    failed = 'failed',
+    success = 'success',
 }
-export interface FailedResult {
-    status: 'failed';
+
+export interface SuccessResult<P = unknown> {
+    status: Status.success;
+    payload?: P;
+}
+
+export enum ErrorCode {
+    // Subscribe codes
+    idAlreadySubscribed,
+
+    // Message codes
+    clientDisconnected,
+
+    // IPC connection codes
+    hubIsNotActive,
+}
+export interface FailedResult<C extends Partial<ErrorCode> = ErrorCode> {
+    status: Status.failed;
+    errorCode: C;
     reason: string;
 }
-export type Result = SuccessResult | FailedResult
+export type EventResult<SuccessPayload = unknown, Codes extends Partial<ErrorCode> = ErrorCode> =
+    SuccessResult<SuccessPayload> | FailedResult<Codes>
 
-export enum EventTypes {
+export enum EventType {
     message = 'message',
     subscribe = 'subscribe',
     unsubscribe = 'unsubscribe',
     connect = 'connect',
 }
 
+export interface SubscribeConfig {
+    id: string;
+}
+
 export interface EventTypesHandlersMap<T = unknown> {
-    [EventTypes.message]: MessageObject<T>;
-    [EventTypes.subscribe]: (SuccessResult & { id: string; }) | (FailedResult & { id: string; });
-    [EventTypes.unsubscribe]: (SuccessResult & { id: string; }) | (FailedResult & { id: string; });
-    [EventTypes.connect]: void;
+    [EventType.message]: MessageObject<T>;
+    [EventType.subscribe]: SuccessResult<string> | FailedResult<ErrorCode.idAlreadySubscribed>;
+    [EventType.unsubscribe]: SuccessResult | FailedResult;
+    [EventType.connect]: void;
 }
