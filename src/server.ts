@@ -1,17 +1,32 @@
 import ipc from 'node-ipc'
-import { isNil } from './utils'
-import { Client, ClientsTable, ErrorCode, EventType, MessageObject, Status, SubscribeConfig, IPCType } from './types'
+import { HUB_ID, isNil } from './utils'
+import { ErrorCode, EventType, MessageObject, Status, SubscribeConfig, IPCType, FailedEventResult } from './types'
 import { Socket } from 'net'
 
-ipc.config.id = 'hub'
+export interface Client {
+    socket: Socket;
+    connectedAt: number;
+}
+export type ClientsTable = Map<string, Client>
+
+ipc.config.id = HUB_ID
 ipc.config.silent = true
 
 const clientsTable: ClientsTable = new Map()
 
 const { log } = console
 
-function serve()
+export interface ServeConfig {
+    messageTimeout: number;
+}
+const defaultConfig: ServeConfig = {
+    messageTimeout: 2000,
+}
+
+function serve(userConfig: Partial<ServeConfig> = {})
 {
+    const config = { ...defaultConfig, ...userConfig }
+
     log('Message hub was started')
     ipc.server.on(
         EventType.message,
@@ -25,6 +40,8 @@ function serve()
             // If some client send the message - it means it surely in the clients table
             const senderClient = clientsTable.get(data.from_id)!
             const destinationClient = clientsTable.get(data.to_id)
+
+            // In case if client is not registered in clients table - send back an error
             if (isNil(destinationClient))
             {
                 ipc.server.emit(
@@ -35,26 +52,52 @@ function serve()
                 return
             }
 
+            // Send the data to the destination client
             ipc.server.emit(
                 destinationClient.socket,
                 EventType.message,
                 data,
             )
+
+            const isSent = false
+            const waitCallback = () =>
+            {
+                if (senderClient.socket) // if the client is still active
+                {
+                    ipc.server.emit( // send the message was successfully sent
+                        senderClient.socket,
+                        waitSendingEvent,
+                        { status: Status.success },
+                    )
+                }
+            }
             // Register event for waiting for the message completed sending
             ipc.server.on(
                 waitSendingEvent,
-                () =>
+                waitCallback,
+            )
+
+            // If the destination client is not respond about receiving the message in timeout - send an error about it
+            setTimeout(() =>
+            {
+                if (!isSent)
                 {
-                    if (senderClient.socket) // if the client is still active
+                    ipc.server.off(waitSendingEvent, waitCallback)
+                    if (senderClient.socket)
                     {
-                        ipc.server.emit( // send the message was successfully sent
+                        const errorResponse: FailedEventResult = {
+                            status: Status.failed,
+                            errorCode: ErrorCode.waitMessageTimeout,
+                            reason: 'The client is not responded about receiving message in time',
+                        }
+                        ipc.server.emit(
                             senderClient.socket,
                             waitSendingEvent,
-                            { status: Status.success },
+                            errorResponse,
                         )
                     }
-                },
-            )
+                }
+            }, config.messageTimeout)
         },
     )
     ipc.server.on(
@@ -78,6 +121,16 @@ function serve()
 
             const newClient: Client = { socket, connectedAt: Date.now() }
             clientsTable.set(id, newClient)
+
+            socket.on('close', () =>
+            {
+                // Remove client from clients table in case if connection was interrupted not by the 'unsubscribe' method
+                if (clientsTable.has(id))
+                {
+                    log(`Breaking unsubscribing: ${id}`)
+                    clientsTable.delete(id)
+                }
+            })
 
             ipc.server.emit(
                 socket,

@@ -1,6 +1,15 @@
 import { IPC } from 'node-ipc'
-import { EventType, MessageObject, EventTypesHandlersMap, Result, IPCType, FailedResult, ErrorCode } from './types'
-import { isNil, isSuccess, randomNumber } from './utils'
+import {
+    ErrorCode,
+    EventResult,
+    EventType,
+    EventTypesHandlersMap,
+    FailedEventResult,
+    IPCType,
+    MessageObject,
+    Status,
+} from './types'
+import { HUB_ID, isNil, isSuccess, randomNumber } from './utils'
 
 type ConnectionsTable = Map<string, ConnectionInstance>
 const connections: ConnectionsTable = new Map()
@@ -16,7 +25,7 @@ export interface Connection<Clients extends string = string>
         handler: (data: EventTypesHandlersMap<T>[K]) => void
     ) => (data: EventTypesHandlersMap<T>[K]) => void;
     off: <T = unknown>(event: EventType, handler: (data: T) => void) => void;
-    send: (to: Clients, message: unknown) => Promise<Result>;
+    send: (to: Clients, message: unknown) => Promise<EventResult>;
     onMessage: (handler: (data: MessageObject) => void) => (data: MessageObject) => void;
 }
 
@@ -69,7 +78,7 @@ export class ConnectionInstance implements Connection
 
     public send(to: string, message: unknown)
     {
-        return new Promise<Result>((res, rej) =>
+        return new Promise<EventResult>((res, rej) =>
         {
             if (isNil(this.ipc)) throw new Error('You should subscribe to hub before sending messages')
 
@@ -82,7 +91,7 @@ export class ConnectionInstance implements Connection
             const waitSendingEvent = `${message_id}_sent`
             this.ipc.of.hub.on(
                 waitSendingEvent,
-                (data: Result) =>
+                (data: EventResult) =>
                 {
                     (isSuccess(data) ? res : rej)(data)
                     this.ipc.of.hub.off(waitSendingEvent, '*')
@@ -109,7 +118,7 @@ export class ConnectionInstance implements Connection
                 customIpcConfig,
             )
 
-            ipc.connectTo('hub', () =>
+            ipc.connectTo(HUB_ID, () =>
             {
                 ipc.of.hub
                     .on(
@@ -146,7 +155,12 @@ export class ConnectionInstance implements Connection
                         {
                             if (error.syscall === EventType.connect && error.code === 'ENOENT')
                             {
-                                rej({ errorCode: ErrorCode.hubIsNotActive, reason: 'hub isn\'t reached', status: 'failed' } as FailedResult)
+                                const failedResult: FailedEventResult = {
+                                    errorCode: ErrorCode.hubIsNotActive,
+                                    reason: 'hub isn\'t reached',
+                                    status: Status.failed,
+                                }
+                                rej(failedResult)
                             }
                         },
                     )
@@ -163,7 +177,7 @@ export class ConnectionInstance implements Connection
                 () =>
                 {
                     res(true)
-                    this.ipc.disconnect('hub')
+                    this.ipc.disconnect(HUB_ID)
                 },
             )
             this.ipc.of.hub.emit(
