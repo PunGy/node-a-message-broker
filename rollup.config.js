@@ -5,7 +5,7 @@ import { terser } from "rollup-plugin-terser";
 
 export default [
     {
-        input: ['src/client.ts', 'src/server.ts', 'src/serverExecutable.ts'],
+        input: ['src/client/index.ts', 'src/server.ts', 'src/serverExecutable.ts'],
         output: {
             format: 'cjs',
             dir: 'dist',

@@ -1,15 +1,17 @@
 import { IPC } from 'node-ipc'
 import {
     ErrorCode,
-    EventResult,
     EventType,
-    EventTypesHandlersMap,
+    Status,
+    EventResponsesMap,
     FailedEventResult,
     IPCType,
-    MessageObject,
-    Status,
-} from './types'
-import { HUB_ID, isNil, isSuccess, randomNumber } from './utils'
+    EventEmitConfigsMap,
+    ClientSubscribableEvents,
+    ClientEmitableEvents, BaseEventConfig,
+} from '@src/types'
+import { HUB_ID, isNil, isSuccess } from '@src/utils'
+import { emitHandlers, onHandlers } from '@src/client/eventHandlers'
 
 type ConnectionsTable = Map<string, ConnectionInstance>
 const connections: ConnectionsTable = new Map()
@@ -20,13 +22,21 @@ export interface Connection<Clients extends string = string>
     isSubscribed: boolean;
 
     subscribe: () => Promise<IPCType>;
-    on: <K extends EventType, T = unknown>(
-        event: K,
-        handler: (data: EventTypesHandlersMap<T>[K]) => void
-    ) => (data: EventTypesHandlersMap<T>[K]) => void;
-    off: <T = unknown>(event: EventType, handler: (data: T) => void) => void;
-    send: (to: Clients, message: unknown) => Promise<EventResult>;
-    onMessage: (handler: (data: MessageObject) => void) => (data: MessageObject) => void;
+
+    // Subscribe an event handler
+    on: <Event extends ClientSubscribableEvents, Data = unknown>(
+        event: Event,
+        handler: (data: EventResponsesMap<Data>[Event]) => void
+    ) => (data: EventResponsesMap<Data>[Event]) => void;
+
+    // Unsubscribe an event handler
+    off: <Data = unknown>(event: EventType, handler: (data: Data) => void) => void;
+
+    // Emit the event
+    emit: <Event extends ClientEmitableEvents, Data = unknown>(
+        event: Event,
+        config: EventEmitConfigsMap<Data>[Event],
+    ) => Promise<EventResponsesMap<Data>[Event]>;
 }
 
 export class ConnectionInstance implements Connection
@@ -43,17 +53,21 @@ export class ConnectionInstance implements Connection
         connections.set(id, this)
     }
 
-    public on<K extends EventType, T = unknown>(event: K, handler: (data: EventTypesHandlersMap<T>[K]) => void)
+    public on<Event extends ClientSubscribableEvents, Data = unknown>(event: Event, handler: (data: EventResponsesMap<Data>[Event]) => void)
     {
         if (isNil(this.ipc)) throw new Error('You should subscribe to hub before adding event handlers')
         this.ipc.of.hub.on(
             event,
-            handler,
+            (data: EventResponsesMap<Data>[Event]) =>
+            {
+                onHandlers[event](this.ipc, data)
+                handler(data)
+            },
         )
         return handler
     }
 
-    public off<T = unknown>(event: EventType, handler: (data: T) => void)
+    public off<Data = unknown>(event: EventType, handler: (data: Data) => void)
     {
         if (isNil(this.ipc)) throw new Error('You should subscribe to hub before removing event handlers')
         this.ipc.of.hub.off(
@@ -62,42 +76,15 @@ export class ConnectionInstance implements Connection
         )
     }
 
-    public onMessage(handler: (data: MessageObject) => void)
+    public emit<Event extends ClientEmitableEvents, Data = unknown>(
+        event: Event,
+        config: EventEmitConfigsMap<Data>[Event],
+    )
     {
-        if (isNil(this.ipc)) throw new Error('You should subscribe to hub before adding event handlers')
-        this.ipc.of.hub.on(
-            EventType.message,
-            (data: MessageObject) =>
-            {
-                this.ipc.of.hub.emit(`${data.message_id}_sent`)
-                handler(data)
-            },
-        )
-        return handler
-    }
+        if (isNil(this.ipc)) throw new Error('You should subscribe to hub before performing events')
 
-    public send(to: string, message: unknown)
-    {
-        return new Promise<EventResult>((res, rej) =>
-        {
-            if (isNil(this.ipc)) throw new Error('You should subscribe to hub before sending messages')
-
-            const message_id = randomNumber(0, 1000000)
-            this.ipc.of.hub.emit(
-                EventType.message,
-                { from_id: this.id, to_id: to, message, message_id },
-            )
-
-            const waitSendingEvent = `${message_id}_sent`
-            this.ipc.of.hub.on(
-                waitSendingEvent,
-                (data: EventResult) =>
-                {
-                    (isSuccess(data) ? res : rej)(data)
-                    this.ipc.of.hub.off(waitSendingEvent, '*')
-                },
-            )
-        })
+        const emitConfig: EventEmitConfigsMap<Data>[Event] & BaseEventConfig = { ...config, clientId: this.id }
+        return emitHandlers[event](this.ipc, emitConfig)
     }
 
     public subscribe(customIpcConfig: Partial<IPCType['config']> = {}): Promise<IPCType>
@@ -134,7 +121,7 @@ export class ConnectionInstance implements Connection
                         },
                     ).on(
                         EventType.subscribe,
-                        (response: EventTypesHandlersMap[EventType.subscribe]) =>
+                        (response: EventResponsesMap[EventType.subscribe]) =>
                         {
                             console.log(response)
                             if (isSuccess(response))
@@ -187,6 +174,3 @@ export class ConnectionInstance implements Connection
         })
     }
 }
-
-export { isSuccess, isFailed } from './utils'
-export * from './types'

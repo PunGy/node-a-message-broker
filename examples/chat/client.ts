@@ -1,15 +1,32 @@
 import readline from 'readline'
 import { ConnectionInstance, isFailed, EventResult, ErrorCode } from '@src/client'
+import { isNil } from '@src/utils'
+import { chat, Handler, participants } from './handlers'
 
 const prompt = (rl: readline.Interface) => (message: string) => new Promise<string>(res => rl.question(message, res))
+
+enum MenuOptions {
+    Participants = 1,
+    EnterChart,
+    Exit,
+}
 
 function showMenu()
 {
     process.stdout.write(`\
-1) Server info
-2) Participants
-3) Enter Chat`)
+${MenuOptions.Participants}) Participants
+${MenuOptions.EnterChart}) Enter Chat
+${MenuOptions.Exit}) Exit`)
 }
+
+const handlers: Record<MenuOptions, Handler> = {
+    [MenuOptions.Participants]: participants,
+    [MenuOptions.EnterChart]: chat,
+    [MenuOptions.Exit]: async () =>
+    {
+        console.log('Goodbye!')
+    },
+};
 
 (async function run()
 {
@@ -38,4 +55,24 @@ function showMenu()
             }
         }
     } while (isFailed(res))
+
+    for (;;)
+    {
+        showMenu()
+
+        const option = await ask('Select an option: ')
+        const optionKey = parseInt(option, 10)
+        if (optionKey === MenuOptions.Exit) break
+
+        const handler: Handler | undefined = handlers[optionKey as MenuOptions]
+        if (isNil(handler))
+        {
+            console.clear()
+            console.log(`${option} is unknown menu option, try listed one`)
+            continue
+        }
+
+        await handler(connection)
+        console.clear()
+    }
 })()

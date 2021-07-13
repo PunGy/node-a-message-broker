@@ -1,6 +1,6 @@
 import ipc from 'node-ipc'
 import { HUB_ID, isNil } from './utils'
-import { ErrorCode, EventType, MessageObject, Status, SubscribeConfig, IPCType, FailedEventResult } from './types'
+import { ErrorCode, EventType, Status, IPCType, FailedEventResult, MessageConfig, SubscribeConfig } from './types'
 import { Socket } from 'net'
 
 export interface Client {
@@ -30,16 +30,16 @@ function serve(userConfig: Partial<ServeConfig> = {})
     log('Message hub was started')
     ipc.server.on(
         EventType.message,
-        (data: MessageObject) =>
+        (data: MessageConfig) =>
         {
-            log(`got a message from ${data.from_id} to ${data.to_id}, the message is ${data.message}`)
+            log(`got a message from ${data.clientId} to ${data.targetId}, the message is ${data.message}`)
 
             // Event name for waiting for the message completed sending
-            const waitSendingEvent = `${data.message_id}_sent`
+            const waitSendingEvent = `${data.messageId}_sent`
 
             // If some client send the message - it means it surely in the clients table
-            const senderClient = clientsTable.get(data.from_id)!
-            const destinationClient = clientsTable.get(data.to_id)
+            const senderClient = clientsTable.get(data.clientId)!
+            const destinationClient = clientsTable.get(data.targetId)
 
             // In case if client is not registered in clients table - send back an error
             if (isNil(destinationClient))
@@ -47,7 +47,7 @@ function serve(userConfig: Partial<ServeConfig> = {})
                 ipc.server.emit(
                     senderClient.socket,
                     waitSendingEvent,
-                    { status: Status.failed, errorCode: ErrorCode.clientDisconnected, reason: `${data.to_id} is disconnected` },
+                    { status: Status.failed, errorCode: ErrorCode.clientDisconnected, reason: `${data.targetId} is disconnected` },
                 )
                 return
             }
@@ -100,11 +100,12 @@ function serve(userConfig: Partial<ServeConfig> = {})
             }, config.messageTimeout)
         },
     )
+
     ipc.server.on(
         EventType.subscribe,
-        ({ id }: SubscribeConfig, socket: Socket) =>
+        ({ clientId }: SubscribeConfig, socket: Socket) =>
         {
-            if (clientsTable.has(id))
+            if (clientsTable.has(clientId))
             {
                 ipc.server.emit(
                     socket,
@@ -112,23 +113,23 @@ function serve(userConfig: Partial<ServeConfig> = {})
                     {
                         status: Status.failed,
                         errorCode: ErrorCode.idAlreadySubscribed,
-                        reason: `provided id (${id}) is already subscribed`,
+                        reason: `provided id (${clientId}) is already subscribed`,
                     },
                 )
                 return
             }
-            log(`Got a new subscriber: ${id}`)
+            log(`Got a new subscriber: ${clientId}`)
 
             const newClient: Client = { socket, connectedAt: Date.now() }
-            clientsTable.set(id, newClient)
+            clientsTable.set(clientId, newClient)
 
             socket.on('close', () =>
             {
                 // Remove client from clients table in case if connection was interrupted not by the 'unsubscribe' method
-                if (clientsTable.has(id))
+                if (clientsTable.has(clientId))
                 {
-                    log(`Breaking unsubscribing: ${id}`)
-                    clientsTable.delete(id)
+                    log(`Breaking unsubscribing: ${clientId}`)
+                    clientsTable.delete(clientId)
                 }
             })
 
@@ -139,14 +140,23 @@ function serve(userConfig: Partial<ServeConfig> = {})
             )
         },
     )
+    //
+    // ipc.server.on(
+    //     EventType.listOfSubscribers,
+    //     () =>
+    //     {
+    //
+    //     },
+    // )
+
     ipc.server.on(
         EventType.unsubscribe,
-        ({ id }: SubscribeConfig) =>
+        ({ clientId }: SubscribeConfig) =>
         {
-            log(`Unsubscribe: ${id}`)
-            const { socket } = clientsTable.get(id)!
-            clientsTable.delete(id)
-            ipc.server.emit(socket, EventType.unsubscribe, { payload: id, status: Status.success })
+            log(`Unsubscribe: ${clientId}`)
+            const { socket } = clientsTable.get(clientId)!
+            clientsTable.delete(clientId)
+            ipc.server.emit(socket, EventType.unsubscribe, { payload: clientId, status: Status.success })
         },
     )
 }
